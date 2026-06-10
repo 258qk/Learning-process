@@ -1,3 +1,7 @@
+"""
+Day 02: NumPy 数组操作
+2026.6.8
+"""
 
 import numpy as np
 
