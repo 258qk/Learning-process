@@ -1,6 +1,6 @@
 # API 速查手册 — 阶段一（M1-M3）
 
-> 更新日期：2026-06-18 | 覆盖：Day 01-07 + 青铜项目
+> 更新日期：2026-07-12 | 覆盖：Day 01-11 + 🥉青铜 + 🥈白银
 
 ---
 
@@ -181,14 +181,43 @@ for epoch in range(N):
 - 每次运行结果不同
 - 可手动设：`model.weight.data = torch.tensor([[2.0]])`（一般不这么做）
 
+### 4.4 nn.Sequential（串联多层）
+
+| 函数 | 说明 |
+|------|------|
+| `nn.Sequential(layer1, layer2, ...)` | 把多层串成一条流水线。数据自动从左流到右 |
+
+```python
+# 两层网络：1输入 → 8隐藏 → 1输出
+model = nn.Sequential(
+    nn.Linear(1, 8),    # 第一层
+    nn.ReLU(),           # 激活（必须加，否则两层退化为一层）
+    nn.Linear(8, 1)     # 第二层
+)
+```
+
+**结构对应关系**：每一层 = `[Linear → 激活]` = `[加权求和 → 改造数据]`。有多层就多组 `[Linear → 激活]`，最后一层通常不加激活。
+
+### 4.5 激活函数
+
+| 函数 | 公式 | 输出范围 | 梯度消失 | 现状 |
+|------|------|---------|---------|------|
+| `torch.sigmoid(x)` | `1/(1+e⁻ˣ)` | (0, 1) | **严重**（±10梯度≈0.000045，比最大值0.25小5500倍） | ❌ 淘汰 |
+| `torch.tanh(x)` | `(eˣ-e⁻ˣ)/(eˣ+e⁻ˣ)` | (-1, 1) | 有改善（最大值=1，是Sigmoid的4倍），但两端仍趋0 | ⚠️ 少数RNN在用 |
+| `torch.relu(x)` | `max(0, x)` | [0, +∞) | **正数区梯度=1，不消失** | ✅ 主流默认 |
+
+**梯度消失根源**：反向传播链 `∂loss/∂w = ... × 激活函数导数 × ...`，Sigmoid' ≈ 0 → 深层收不到信号。
+**ReLU为什么赢**：正数区导数恒为1，梯度不衰减。代价：负数直接死（Dead ReLU，输出恒为0）。
+
 ---
 
 ## 五、PyTorch Optimizer（优化器）
 
 | 函数/方法 | 参数 | 返回值 | 说明 |
 |------|------|--------|------|
-| `torch.optim.SGD(params, lr=0.01)` | `params`：`model.parameters()` / `lr`：学习率 | `Optimizer` 对象 | **自动更新参数。SGD = Stochastic Gradient Descent（随机梯度下降）** |
-| `optimizer.step()` | 无参数 | `None` | **对每个参数执行 `param = param - lr * param.grad`。替代手写 `w -= lr*grad`** |
+| `torch.optim.SGD(params, lr=0.01)` | `params`：`model.parameters()` / `lr`：学习率 | `Optimizer` | 随机梯度下降。最简单的优化器 |
+| `torch.optim.Adam(params, lr=0.001, weight_decay=0)` | `params`：`model.parameters()` / `lr`：学习率 / `weight_decay`：L2 正则化强度 | `Optimizer` | 自适应优化器，自动给每个参数调学习率。实际项目用得比 SGD 多。`weight_decay` 惩罚大参数防过拟合 |
+| `optimizer.step()` | 无参数 | `None` | 对每个参数执行 `param = param - lr * param.grad`。替代手写 `w -= lr*grad` |
 | `optimizer.zero_grad()` | 无参数 | `None` | **清零所有参数梯度。替代手写 `w.grad.zero_()`** |
 
 ### optimizer 机制
@@ -218,7 +247,40 @@ optimizer.zero_grad()  # 一步替代上面 2 行清零
 
 ---
 
-## 六、PyTorch DataLoader（数据加载）
+## 六、PyTorch 损失函数
+
+| 函数 | 参数 | 说明 |
+|------|------|------|
+| `nn.MSELoss()` | 无参数（默认） | 均方误差：`mean((pred-true)²)`。回归任务默认损失 |
+| `loss_fn(pred, true)` | `pred`：预测值 / `true`：真实值 | 计算 loss。等价于手写 `((pred-true)**2).mean()` |
+
+```python
+loss_fn = nn.MSELoss()
+loss = loss_fn(y_pred, y_true)   # 自动算MSE，比手写简洁
+```
+
+### SGD vs Adam 对比
+
+| | SGD | Adam |
+|--|-----|------|
+| 更新公式 | `w -= lr × grad` | `w -= lr × momentum / √velocity` |
+| 特点 | 纯梯度，简单直接 | 动量惯性 + 自适应学习率 |
+| 收敛速度 | 慢 | 快 |
+| 后期 | 平稳靠近最优 | 会波动（动量惯性冲过头弹回来） |
+| 适用场景 | 需要精确收敛 | 快速原型、大模型 |
+| C 类比 | 恒定油门 | 惯性 + 自适应油门 |
+
+### model.state_dict 操作
+
+| 函数 | 参数 | 返回值 | 说明 |
+|------|------|--------|------|
+| `model.state_dict()` | 无参数 | `dict`（键=层名，值=权重张量） | 读出模型全部参数 |
+| `model.load_state_dict(dict)` | `dict`：state_dict 格式的字典 | `None` | 覆盖写入模型参数 |
+| `other_model.load_state_dict(model.state_dict())` | — | — | **复制权重：让两个模型参数完全一致。对比优化器时的必要操作** |
+
+---
+
+## 七、PyTorch DataLoader（数据加载）
 
 | 类/方法 | 参数 | 说明 |
 |------|------|------|
@@ -247,7 +309,7 @@ for i, (batch_x, batch_y) in enumerate(loader):
 
 ---
 
-## 七、matplotlib（matplotlib.pyplot as plt）
+## 八、matplotlib（matplotlib.pyplot as plt）
 
 | 函数 | 参数 | 返回值 | 说明 |
 |------|------|--------|------|
@@ -271,7 +333,7 @@ for i, (batch_x, batch_y) in enumerate(loader):
 
 ---
 
-## 八、Python 标准库
+## 九、Python 标准库
 
 | 函数/模块 | 说明 |
 |------|------|
@@ -299,7 +361,7 @@ arr[1:4, :2] # 二维：第 1-3 行，前 2 列
 
 ---
 
-## 九、训练循环模板速查
+## 十、训练循环模板速查
 
 ### 模板 A：手写参数（Day 04-05）
 
@@ -334,7 +396,7 @@ for epoch in range(N):
 
 ---
 
-## 十、常见报错速查
+## 十一、常见报错速查
 
 | 报错 | 原因 | 解决 |
 |------|------|------|
@@ -345,3 +407,87 @@ for epoch in range(N):
 | `.item()` 报错 | 多值 Tensor 调 item() | 只有单值能用 item() |
 | `requires_grad=True` 不生效 | loss 计算在 `no_grad()` 里 | loss 必须在 no_grad 外面 |
 | 循环中 w 越来越离谱 | 忘了 `zero_()` | 梯度累加，每次循环末尾清零 |
+| train_loss 降 test_loss 升 | **过拟合**：模型在背答案 | ①加数据 ②减模型参数 ③weight_decay ④提前停止 |
+
+---
+
+## 十二、模型持久化
+
+| 函数 | 参数 | 返回值 | 说明 |
+|------|------|--------|------|
+| `torch.save(model.state_dict(), path)` | `state_dict()`：模型权重字典 / `path`：文件路径 | 写入文件 | 保存模型权重到 `.pth` 文件 |
+| `model.load_state_dict(torch.load(path))` | `path`：`.pth` 文件路径 | 加载到 model | 加载已保存的权重。加载前需先创建同样结构的 model |
+
+```python
+# 保存
+torch.save(model.state_dict(), "model.pth")
+
+# 加载（需先创建相同结构的模型）
+model = nn.Sequential(nn.Linear(24, 16), nn.ReLU(), nn.Linear(16, 1))
+model.load_state_dict(torch.load("model.pth"))
+model.eval()
+```
+
+---
+
+## 十三、卷积与池化（CNN基础）
+
+### 13.1 卷积（Convolution）
+
+| 概念 | 说明 |
+|------|------|
+| 卷积核（kernel） | 一个小矩阵（如 3×3），在原图上滑动，每个位置做**加权求和** |
+| 输出尺寸 | `(H - K + 1) × (W - K + 1)`。6×6 + 3×3核 → 4×4 |
+| stride（步长） | 核每次移动的像素数。stride=2 时输出更小 |
+| padding（填充） | 原图外围加 0，控制输出尺寸。padding=1 时输出与输入同尺寸 |
+
+```
+卷积 = 窗口滑动 + 加权求和（和Linear的 w·x+b 同源）
+区别：Linear每个x有独立w，卷积一个核扫全图（权重共享）
+```
+
+### 13.2 NumPy 手写卷积
+
+```python
+# 核在原图上每次移一格
+for i in range(H - K + 1):
+    for j in range(W - K + 1):
+        region = image[i:i+K, j:j+K]       # 取窗口
+        out[i, j] = (region * kernel).sum() # 加权求和
+```
+
+### 13.3 池化（Pooling）
+
+| 概念 | 说明 |
+|------|------|
+| 作用 | 缩小特征图尺寸，减少计算量，保留重要特征 |
+| MaxPooling | 取窗口内**最大值**（保留最强信号） |
+| AveragePooling | 取窗口内**平均值** |
+| 常用配置 | 2×2 窗口 + stride=2，尺寸减半 |
+
+```python
+# NumPy 手写 MaxPooling（2×2, stride=2）
+for i in range(2):
+    for j in range(2):
+        region = feature[i*2:i*2+2, j*2:j*2+2]
+        out[i, j] = region.max()
+```
+
+### 13.4 CNN vs MLP
+
+| | MLP（全连接） | CNN（卷积） |
+|--|-------------|-----------|
+| 参数 | 787×128 ≈ 10万 | 3×3 = 9 |
+| 原因 | 每个像素单独拉线 | 核扫全图，权重共享 |
+| 扩展性 | 图越大参数爆炸 | 参数固定，与图大小无关 |
+
+### 13.5 CNN 标准结构
+
+```
+输入 → [Conv2d] → [ReLU] → [MaxPool2d] → [Conv2d] → [ReLU] → [MaxPool2d] → Flatten → Linear → 输出
+        卷积核     激活      降维              再卷积     激活      降维         拉平     分类
+```
+
+C 类比：`Conv2d` = 滑动窗口函数扫全图，`MaxPool2d` = 隔段取最大值压缩。
+
+**核心理解**：CNN 的卷积核数字是**训练出来的**（梯度下降自动调，和 Linear 的 w/b 一样），不是人选的。手工设计的核（Sobel边缘检测等）只在传统图像处理中用。

@@ -68,7 +68,7 @@ plt.figure(figsize = (10, 6))
 plt.plot(data_grad)
 plt.xlabel("step")
 plt.ylabel("grad")
-plt.title("grad vs step")
+plt.title("grad and step")
 plt.show()
 
 

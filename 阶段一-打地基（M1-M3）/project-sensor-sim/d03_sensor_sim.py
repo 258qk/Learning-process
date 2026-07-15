@@ -27,7 +27,8 @@ print("通道4 (GPS) - 均值：{:.4f}, 峰值：{:.4f}, 方差：{:.6f}".format
 print(f"加速度100-159 - 均值：{accel_x[100:160].mean():.4f}, 峰值：{np.max(np.abs(accel_x[100:160])):.4f}, 方差：{accel_x[100:160].var():.6f}")
 print(f"加速度500-559 - 均值：{accel_x[500:560].mean():.4f}, 峰值: {np.max(np.abs(accel_x[500:560])):.4f}, 方差: {accel_x[500:560].var():.6f}")
 # 导出 CSV
-data = np.column_stack((accel_x, gyro_z, temp, gps))
+data = np.column_stack((accel_x, gyro_z, temp, gps)) # 堆叠数据，将数组按列堆叠
+print("data:",data)
 np.savetxt(os.path.join(script_dir, "sensor_data.csv"), data, delimiter=",", header="AccelX,GyroZ,Temp,GPS", comments="")
 print("\n数据已导出到 sensor_data.csv")
 

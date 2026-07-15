@@ -35,3 +35,10 @@ plt.ylabel('y')
 plt.title('两层Linear叠起来 = 还是一根直线')
 plt.show()
 print(f"损失: {loss.item():.4f}")
+
+# 看看 Linear 内部是不是矩阵乘法
+h = x @ model_relu[0].weight.T + model_relu[0].bias
+h_relu = torch.relu(h)
+y_manual = h_relu @ model_relu[2].weight.T + model_relu[2].bias
+print("手写矩阵乘法结果:", y_manual[:3].T)
+print("model(x) 结果:", model_relu(x)[:3].T)
