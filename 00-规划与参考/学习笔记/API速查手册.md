@@ -1,6 +1,6 @@
 # API 速查手册 — 阶段一（M1-M3）
 
-> 更新日期：2026-07-12 | 覆盖：Day 01-11 + 🥉青铜 + 🥈白银
+> 更新日期：2026-07-15 | 覆盖：Day 01-12 + 🥉青铜 + 🥈白银 + CNN MNIST
 
 ---
 
@@ -491,3 +491,49 @@ for i in range(2):
 C 类比：`Conv2d` = 滑动窗口函数扫全图，`MaxPool2d` = 隔段取最大值压缩。
 
 **核心理解**：CNN 的卷积核数字是**训练出来的**（梯度下降自动调，和 Linear 的 w/b 一样），不是人选的。手工设计的核（Sobel边缘检测等）只在传统图像处理中用。
+
+### 13.6 PyTorch CNN API
+
+| 函数 | 参数 | 返回值 | 说明 |
+|------|------|--------|------|
+| `nn.Conv2d(in, out, kernel_size, padding)` | `in`：输入通道数 / `out`：输出通道数（=卷积核个数） / `kernel_size`：核大小 / `padding`：填充圈数 | `nn.Conv2d` 对象 | **一行替代手写卷积循环**。`Conv2d(1,8,3,padding=1)`=1通道→8通道，核3×3，输出同尺寸 |
+| `nn.MaxPool2d(kernel_size)` | `kernel_size`：窗口大小（默认 stride=kernel_size） | `nn.MaxPool2d` 对象 | **一行替代手写池化循环**。`MaxPool2d(2)`=2×2窗口取最大值，28×28→14×14 |
+| `nn.Flatten()` | 无参数 | `nn.Flatten` 对象 | **多维拉平成一维**。`(64,16,7,7)`→`(64,784)`，让 Linear 能接收 |
+
+**权重形状**：`Conv2d(in, out, k)` 的 `weight.shape = (out, in, k, k)`。`Conv2d(1,8,3)`→`(8,1,3,3)`=8个核×1通道×3×3=72个权重。
+
+**通道规则**：`out` = 核个数 = 输出通道数 = 提取多少种特征。每个核同时看所有 `in` 个输入通道并求和。
+
+### 13.7 CrossEntropyLoss（分类损失）
+
+| 函数 | 参数 | 说明 |
+|------|------|------|
+| `nn.CrossEntropyLoss()` | 无参数 | 分类任务损失。内部自动 Softmax |
+| `loss_fn(pred, label)` | `pred`：(batch, num_classes) 得分 / `label`：(batch,) 整数标签 | 用法和 MSELoss 完全一样 |
+
+```python
+loss_fn = nn.CrossEntropyLoss()
+loss = loss_fn(y_pred, y_true)   # y_true 就是整数 [1, 0, 3, ...]，不需要 one-hot
+```
+
+---
+
+## 十四、torchvision 数据加载
+
+| 函数/类 | 参数 | 说明 |
+|------|------|------|
+| `transforms.ToTensor()` | 无参数 | 图片→Tensor + 归一化（0~255→0~1） |
+| `datasets.MNIST(root, train, download, transform)` | `root`：下载目录 / `train`：True=训练集 False=测试集 / `download`：是否自动下载 / `transform`：图片转换方式 | 自动下载+加载 MNIST 数据集 |
+
+```python
+from torchvision import datasets, transforms
+
+transform = transforms.ToTensor()
+train_data = datasets.MNIST(root='./data', train=True,  download=True, transform=transform)
+test_data  = datasets.MNIST(root='./data', train=False, download=True, transform=transform)
+
+train_loader = DataLoader(train_data, batch_size=64, shuffle=True)
+test_loader  = DataLoader(test_data,  batch_size=64, shuffle=False)
+```
+
+**数据形状**：图片→Tensor后 shape `(1,28,28)`；DataLoader 取 batch→`(64,1,28,28)`；label shape `(64,)`（64个整数 0~9）。

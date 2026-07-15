@@ -73,3 +73,5 @@ for epoch in range(3):
     print(f'Epoch {epoch}, Test Loss: {test_loss.item():.4f}, Test Accuracy: {correct/total:.4f}')
 
 
+torch.save(cnn.state_dict(), "models/mnist_cnn.pth")
+print("模型已保存到 models/mnist_cnn.pth")
