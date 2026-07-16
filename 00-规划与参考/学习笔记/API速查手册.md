@@ -537,3 +537,53 @@ test_loader  = DataLoader(test_data,  batch_size=64, shuffle=False)
 ```
 
 **数据形状**：图片→Tensor后 shape `(1,28,28)`；DataLoader 取 batch→`(64,1,28,28)`；label shape `(64,)`（64个整数 0~9）。
+
+---
+
+## 十五、图像预处理与数据增强
+
+### 15.1 预处理流程
+
+```
+PIL Image → Resize（统一尺寸）→ （增强：翻转/裁剪）→ ToTensor（0~1）→ Normalize（-1~1）
+```
+
+| 函数 | 参数 | 说明 |
+|------|------|------|
+| `transforms.Compose([...])` | 按顺序执行的 transform 列表 | 把多个 transform 打包成一个 |
+| `transforms.Resize((H, W))` | 目标尺寸 | 统一图片大小 |
+| `transforms.RandomHorizontalFlip()` | 无参数（默认 p=0.5） | 50%概率左右翻转，数据增强 |
+| `transforms.RandomCrop(size, padding=N)` | `size`=输出尺寸，`padding`=先放大N再裁 | 先放大到 (H+N,W+N) 再随机裁回原尺寸，防过拟合 |
+| `transforms.Normalize(mean, std)` | `mean`/`std`：各通道的均值和标准差，如 `(0.5, 0.5, 0.5)` | 归一化到 -1~1，零中心利于梯度更新 |
+
+### 15.2 数据增强（防过拟合）
+
+| 技术 | 代码 | 作用 |
+|------|------|------|
+| 随机翻转 | `RandomHorizontalFlip()` | 物体朝左朝右都认得 |
+| 随机裁剪 | `RandomCrop(32, padding=4)` | 物体位置偏移都能认 |
+| Dropout | `nn.Dropout(0.3)` | 训练时随机丢掉 30% 神经元，强迫不依赖单个特征 |
+| weight_decay | `Adam(params, lr=0.001, weight_decay=1e-4)` | L2 正则化——约束参数不能太大 |
+
+### 15.3 CIFAR-10 / ImageFolder 加载
+
+| 数据源 | 代码 | 说明 |
+|--------|------|------|
+| CIFAR-10（自带） | `datasets.CIFAR10(root, train, download, transform)` | 5万训练+1万测试，32×32彩色，10类 |
+| 自定义文件夹 | `datasets.ImageFolder(root, transform)` | 按子文件夹名自动打标签（drone→0, car→1） |
+| 手动切训练/测试 | `random_split(dataset, [train_size, test_size])` | ImageFolder 没有自带分割时需要 |
+
+```python
+# CIFAR-10 用法（和 MNIST 一样）
+train_data = datasets.CIFAR10(root='./data', train=True,  download=False, transform=trainform)
+test_data  = datasets.CIFAR10(root='./data', train=False, download=False, transform=testform)
+```
+
+### 15.4 过拟合诊断标准流程
+
+| 现象 | 判断 | 修复方案 |
+|------|------|---------|
+| train↑ test↑ | 正常训练 | 继续，可能加 epoch |
+| train↑ test→ | 健康，逼近上限 | 加宽网络或加强数据增强 |
+| train↑ test↓ | **过拟合** | Dropout + weight_decay + 数据增强 |
+| train→ test→ | 欠拟合 / 学习率过大 | 加宽网络 / 降低 lr |
